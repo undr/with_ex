@@ -5,11 +5,14 @@ defmodule WithEx.Executor.State do
 
   defstruct effects: %{}, tasks: [], result: nil
 
+  @type error_type :: :error | :exit | :raise | :throw
   @type t :: %__MODULE__{
     effects: map(),
     tasks: list(),
     result: nil | {:ok, any()} | {:error, any()}
   }
+
+  @error_types [:error, :exit, :raise, :throw]
 
   @spec assign(t(), :effect, {Chain.name(), any()}) :: t()
   def assign(%__MODULE__{effects: effects} = state, :effect, {name, value}) do
@@ -21,9 +24,9 @@ defmodule WithEx.Executor.State do
     %__MODULE__{state | effects: Map.put(effects, name, value), result: {:ok, value}}
   end
 
-  @spec assign(t(), :error, {Chain.name(), any()}) :: t()
-  def assign(%__MODULE__{} = state, :error, reason) do
-    %__MODULE__{state | result: {:error, reason}}
+  @spec assign(t(), error_type(), {Chain.name(), any()}) :: t()
+  def assign(%__MODULE__{} = state, error_type, reason) when error_type in @error_types do
+    %__MODULE__{state | result: {error_type, reason}}
   end
 
   @spec assign(t(), :task, {Chain.name(), {Task.t(), Keyword.t()}}) :: t()

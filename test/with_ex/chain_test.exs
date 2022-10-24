@@ -212,7 +212,7 @@ defmodule WithEx.ChainTest do
         |> Chain.run(:sum, fn _ -> {:error, :sum_reason} end)
         |> Chain.run(:pow2, &({:ok, :math.pow(&1.sum, 2) |> round()}))
 
-      assert {:error, {:sum, :sum_reason}} == Chain.exec(chain)
+      assert {:error, {:sum, :sum_reason}, %{x: 5, y: 10}} == Chain.exec(chain)
 
       chain =
         Chain.new()
@@ -221,7 +221,7 @@ defmodule WithEx.ChainTest do
         |> Chain.run(:sum, &({:ok, &1.x + &1.y}))
         |> Chain.run(:pow2, fn _ -> {:error, :pow2_reason} end)
 
-      assert {:error, {:pow2, :pow2_reason}} == Chain.exec(chain)
+      assert {:error, {:pow2, :pow2_reason}, %{x: 5, y: 10, sum: 15}} == Chain.exec(chain)
     end
 
     test "error with mfa" do
@@ -230,14 +230,14 @@ defmodule WithEx.ChainTest do
         |> Chain.run(:sum, __MODULE__, :sum_error, [5, 10])
         |> Chain.run(:pow2, __MODULE__, :pow2_ok, [])
 
-      assert {:error, {:sum, :sum_reason}} == Chain.exec(chain)
+      assert {:error, {:sum, :sum_reason}, %{}} == Chain.exec(chain)
 
       chain =
         Chain.new()
         |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
         |> Chain.run(:pow2, __MODULE__, :pow2_error, [])
 
-      assert {:error, {:pow2, :pow2_reason}} == Chain.exec(chain)
+      assert {:error, {:pow2, :pow2_reason}, %{sum: 15}} == Chain.exec(chain)
     end
 
     test "async success with functions" do
@@ -268,7 +268,7 @@ defmodule WithEx.ChainTest do
         |> Chain.run_async(:sum, fn _ -> {:error, :sum_reason} end)
         |> Chain.run_async(:prod, &({:ok, &1.x * &1.y}))
 
-      assert {:error, {:sum, :sum_reason}} == Chain.exec(chain)
+      assert {:error, {:sum, :sum_reason}, %{x: 5, y: 10, prod: 50}} == Chain.exec(chain)
 
       chain =
         Chain.new()
@@ -277,7 +277,7 @@ defmodule WithEx.ChainTest do
         |> Chain.run_async(:sum, &({:ok, &1.x + &1.y}))
         |> Chain.run_async(:prod, fn _ -> {:error, :prod_reason} end)
 
-      assert {:error, {:prod, :prod_reason}} == Chain.exec(chain)
+      assert {:error, {:prod, :prod_reason}, %{x: 5, y: 10, sum: 15}} == Chain.exec(chain)
     end
 
     test "async error with mfa" do
@@ -286,14 +286,14 @@ defmodule WithEx.ChainTest do
         |> Chain.run_async(:sum, __MODULE__, :sum_error, [5, 10])
         |> Chain.run_async(:prod, __MODULE__, :prod_ok, [5, 10])
 
-      assert {:error, {:sum, :sum_reason}} == Chain.exec(chain)
+      assert {:error, {:sum, :sum_reason}, %{prod: 50}} == Chain.exec(chain)
 
       chain =
         Chain.new()
         |> Chain.run_async(:sum, __MODULE__, :sum_ok, [5, 10])
         |> Chain.run_async(:prod, __MODULE__, :prod_error, [5, 10])
 
-      assert {:error, {:prod, :prod_reason}} == Chain.exec(chain)
+      assert {:error, {:prod, :prod_reason}, %{sum: 15}} == Chain.exec(chain)
     end
 
     test "final hooks with success" do
@@ -334,12 +334,35 @@ defmodule WithEx.ChainTest do
           send(effects.parent, {:effects2, effects})
         end)
 
-      assert {:error, {:pow2, :pow2_reason}} = Chain.exec(chain)
+      assert {:error, {:pow2, :pow2_reason}, _} = Chain.exec(chain)
 
       assert_receive({:result1, {:error, {:pow2, :pow2_reason}}})
       assert_receive({:effects1, %{sum: 15}})
       assert_receive({:result2, {:error, {:pow2, :pow2_reason}}})
       assert_receive({:effects2, %{sum: 15}})
+    end
+
+    test "final hooks with exception" do
+      chain =
+        Chain.new()
+        |> Chain.put(:parent, self())
+        |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
+        |> Chain.run(:pow2, fn _ -> raise "error!" end)
+        |> Chain.finally(fn result, effects ->
+          send(effects.parent, {:result1, result})
+          send(effects.parent, {:effects1, effects})
+        end)
+        |> Chain.finally(fn result, effects ->
+          send(effects.parent, {:result2, result})
+          send(effects.parent, {:effects2, effects})
+        end)
+
+      assert_raise(RuntimeError, fn -> Chain.exec(chain) end)
+
+      assert_received({:result1, {:raise, {:pow2, _}}})
+      assert_received({:effects1, %{sum: 15}})
+      assert_received({:result2, {:raise, {:pow2, _}}})
+      assert_received({:effects2, %{sum: 15}})
     end
   end
 end

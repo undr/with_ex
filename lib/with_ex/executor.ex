@@ -50,6 +50,15 @@ defmodule WithEx.Executor do
         {:ok, value} ->
           {:next, State.assign(state, :result, {name, value})}
 
+        {:exit, reason} ->
+          {:halt, State.assign(state, :exit, {name, reason})}
+
+        {:throw, reason} ->
+          {:halt, State.assign(state, :throw, {name, reason})}
+
+        {:raise, reason} ->
+          {:halt, State.assign(state, :raise, {name, reason})}
+
         {:error, reason} ->
           {:halt, State.assign(state, :error, {name, reason})}
 
@@ -76,9 +85,8 @@ defmodule WithEx.Executor do
     end
   end
 
-  defp maybe_await_tasks(%{tasks: [], result: result} = state) do
-    action = if(match?({:error, _}, result), do: :halt, else: :next)
-    {action, state}
+  defp maybe_await_tasks(%{tasks: []} = state) do
+    {:next, state}
   end
 
   defp maybe_await_tasks(%{tasks: tasks} = state) do
@@ -111,6 +119,15 @@ defmodule WithEx.Executor do
       {:ok, {:error, reason}} ->
         {action(action, :halt), State.assign(state, :error, {name, reason})}
 
+      {:ok, {:exit, reason}} ->
+        {action(action, :halt), State.assign(state, :exit, {name, reason})}
+
+      {:ok, {:throw, reason}} ->
+        {action(action, :halt), State.assign(state, :throw, {name, reason})}
+
+      {:ok, {:raise, reason}} ->
+        {action(action, :halt), State.assign(state, :raise, {name, reason})}
+
       {:exit, reason} ->
         {action(action, :halt), State.assign(state, :error, {name, {:exit, reason}})}
 
@@ -122,24 +139,43 @@ defmodule WithEx.Executor do
     end
   end
 
-  defp handle_chain_result(%State{result: {:ok, value}, effects: effects}, final_hooks) do
-    Enum.each(final_hooks, &(apply_fun(&1, [{:ok, value}, effects])))
+  defp handle_chain_result(%State{result: result, effects: effects}, final_hooks) do
+    Enum.each(final_hooks, &(apply_fun(&1, [result, effects])))
 
-    {:ok, value, effects}
-  end
+    case result do
+      {:ok, value} ->
+        {:ok, value, effects}
 
-  defp handle_chain_result(%State{result: {:error, reason}, effects: effects}, final_hooks) do
-    Enum.each(final_hooks, &(apply_fun(&1, [{:error, reason}, effects])))
+      {:raise, {_, {exception, stacktrace}}} ->
+        reraise(exception, stacktrace)
 
-    {:error, reason}
+      {:exit, {_, reason}} ->
+        exit(reason)
+
+      {:throw, {_, reason}} ->
+        throw(reason)
+
+      {:error, reason} ->
+        {:error, reason, effects}
+    end
   end
 
   defp apply_fun(fun, args) when is_function(fun) do
     apply(fun, args)
+  rescue
+    exception -> {:raise, {exception, __STACKTRACE__}}
+  catch
+    :exit, reason -> {:exit, reason}
+    :throw, error -> {:throw, error}
   end
 
   defp apply_fun({mod, fun, largs}, rargs) do
     apply(mod, fun, largs ++ rargs)
+  rescue
+    exception -> {:raise, {exception, __STACKTRACE__}}
+  catch
+    :exit, reason -> {:exit, reason}
+    :throw, error -> {:throw, error}
   end
 
   defp action(:halt, _),

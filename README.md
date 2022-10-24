@@ -183,15 +183,15 @@ NaiveImpl.run("xxx", %{value: 100})
 
 WithExImpl1.run("xxx", %{value: 100})
 # => {:ok, result, effects}
-# => {:error, {:data2, :unreachable_service}}
+# => {:error, {:data2, :unreachable_service}, effects}
 
 WithExImpl2.run("xxx", %{value: 100})
 # => {:ok, result, effects}
-# => {:error, {:data2, :unreachable_service}}
+# => {:error, {:data2, :unreachable_service}, effects}
 
 WithExImpl3.run("xxx", %{value: 100})
 # => {:ok, result, effects}
-# => {:error, {:data2, :unreachable_service}}
+# => {:error, {:data2, :unreachable_service}, effects}
 ```
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
