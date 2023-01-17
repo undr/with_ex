@@ -48,7 +48,8 @@ defmodule WithEx.Executor do
           {:next, state}
 
         {:ok, value} ->
-          {:next, State.assign(state, :result, {name, value})}
+          state = if(name == :_, do: state, else: State.assign(state, :result, {name, value}))
+          {:next, state}
 
         {:exit, reason} ->
           {:halt, State.assign(state, :exit, {name, reason})}
