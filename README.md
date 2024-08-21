@@ -55,17 +55,17 @@ defmodule WithExImpl1 do
 
   def run(token, request) do
     Chain.new()
-    |> Chain.run(:validate, __MODULE__, :validate, [token, request])
-    |> Chain.run(:config, __MODULE__, :get_config, [token])
-    |> Chain.run_async(:data1, __MODULE__, :get_data1, [token], timeout: 1000)
-    |> Chain.run_async(:data2, __MODULE__, :get_data2, [token], timeout: 1000)
-    |> Chain.run(:before_event, __MODULE__, :emit_before_event, [token, request])
-    |> Chain.run(:response, __MODULE__, :execute_request, [token, request])
-    |> Chain.run_async(:update_data1, __MODULE__, :update_data1, [token])
-    |> Chain.run_async(:update_data2, __MODULE__, :update_data2, [token])
-    |> Chain.run(:after_event, __MODULE__, :emit_after_event, [token])
-    |> Chain.run(:result, __MODULE__, :build_result, [])
-    |> Chain.finally(__MODULE__, :log_result, [token, request])
+    |> Chain.run(:validate, {__MODULE__, :validate, [token, request]})
+    |> Chain.run(:config, {__MODULE__, :get_config, [token]})
+    |> Chain.run_async(:data1, {__MODULE__, :get_data1, [token]}, timeout: 1000)
+    |> Chain.run_async(:data2, {__MODULE__, :get_data2, [token]}, timeout: 1000)
+    |> Chain.run(:before_event, {__MODULE__, :emit_before_event, [token, request]})
+    |> Chain.run(:response, {__MODULE__, :execute_request, [token, request]})
+    |> Chain.run_async(:update_data1, {__MODULE__, :update_data1, [token]})
+    |> Chain.run_async(:update_data2, {__MODULE__, :update_data2, [token]})
+    |> Chain.run(:after_event, {__MODULE__, :emit_after_event, [token]})
+    |> Chain.run(:result, {__MODULE__, :build_result, []})
+    |> Chain.finally({__MODULE__, :log_result, [token, request]})
     |> Chain.exec()
   end
 

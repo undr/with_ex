@@ -74,7 +74,8 @@ defmodule WithEx.Chain do
   @doc """
   Adds a function to run as part of the chain.
 
-  The function should return either `{:ok, value}` or `{:error, value}`,
+  The function can be a lambda function or MFA tuple and
+  should return either `{:ok, value}` or `{:error, value}`,
   and receives the state as an argument.
 
   ## Example
@@ -85,21 +86,24 @@ defmodule WithEx.Chain do
         end
       end)
   """
+  @spec run(t(), run()) :: t()
+  def run(%__MODULE__{} = chain, run) when is_function(run, 1) do
+    add_operation(chain, :_, {:run, run})
+  end
+
+  @spec run(t(), {module(), atom(), [any()]}) :: t()
+  def run(%__MODULE__{} = chain, {mod, fun, args})
+      when is_atom(mod) and is_atom(fun) and is_list(args) do
+    add_operation(chain, :_, {:run, {mod, fun, args}})
+  end
+
   @spec run(t(), name(), run()) :: t()
   def run(%__MODULE__{} = chain, name, run) when is_function(run, 1) do
     add_operation(chain, name, {:run, run})
   end
 
-  @doc """
-  Adds a function to run as part of the chain.
-
-  Similar to `run/3`, but allows to pass module name, function and arguments.
-  The function should return either `{:ok, value}` or `{:error, value}`, and
-  receives the state as the argument (prepended to those passed
-  in the call to the function).
-  """
-  @spec run(t(), name(), module(), atom(), [any()]) :: t()
-  def run(%__MODULE__{} = chain, name, mod, fun, args)
+  @spec run(t(), name(), {module(), atom(), [any()]}) :: t()
+  def run(%__MODULE__{} = chain, name, {mod, fun, args})
       when is_atom(mod) and is_atom(fun) and is_list(args) do
     add_operation(chain, name, {:run, {mod, fun, args}})
   end
@@ -107,34 +111,58 @@ defmodule WithEx.Chain do
   @doc """
   Adds a function to asynchronously run as part of the chain.
 
-  The function should return either `{:ok, value}` or `{:error, value}`,
+  The function can be a lambda function or MFA tuple and
+  should return either `{:ok, value}` or `{:error, value}`,
   and receives the state as an argument.
 
   ## Example
 
-      WithEx.Chain.run(chain, :write, fn %{image: image} ->
+      WithEx.Chain.run_async(chain, :write, fn %{image: image} ->
         with :ok <- File.write(image.name, image.contents) do
           {:ok, nil}
         end
       end)
   """
+  @spec run_async(t(), run()) :: t()
+  def run_async(%__MODULE__{} = chain, run) when is_function(run, 1) do
+    run_async(chain, run, [])
+  end
+
+  @spec run_async(t(), {module(), atom(), [any()]}) :: t()
+  def run_async(%__MODULE__{} = chain, {mod, fun, args})
+      when is_atom(mod) and is_atom(fun) and is_list(args) do
+    run_async(chain, {mod, fun, args}, [])
+  end
+
+  @spec run_async(t(), run(), Keyword.t()) :: t()
+  def run_async(%__MODULE__{} = chain, run, opts) when is_function(run, 1) do
+    add_operation(chain, :_, {:run_async, run, opts})
+  end
+
+  @spec run_async(t(), {module(), atom(), [any()]}, Keyword.t()) :: t()
+  def run_async(%__MODULE__{} = chain, {mod, fun, args}, opts)
+      when is_atom(mod) and is_atom(fun) and is_list(args) do
+    add_operation(chain, :_, {:run_async, {mod, fun, args}, opts})
+  end
+
   @spec run_async(t(), name(), run()) :: t()
+  def run_async(%__MODULE__{} = chain, name, run) when is_function(run, 1) do
+    run_async(chain, name, run, [])
+  end
+
+  @spec run_async(t(), name(), {module(), atom(), [any()]}) :: t()
+  def run_async(%__MODULE__{} = chain, name, {mod, fun, args})
+      when is_atom(mod) and is_atom(fun) and is_list(args) do
+    run_async(chain, name, {mod, fun, args}, [])
+  end
+
   @spec run_async(t(), name(), run(), Keyword.t()) :: t()
-  def run_async(%__MODULE__{} = chain, name, run, opts \\ []) when is_function(run, 1) do
+  def run_async(%__MODULE__{} = chain, name, run, opts) when is_function(run, 1) do
     add_operation(chain, name, {:run_async, run, opts})
   end
 
-  @doc """
-  Adds a function to asynchronously run as part of the chain.
-
-  Similar to `run_async/3`, but allows to pass module name, function and arguments.
-  The function should return either `{:ok, value}` or `{:error, value}`, and
-  receives the state as the first argument (prepended to those passed
-  in the call to the function).
-  """
-  @spec run_async(t(), name(), module(), atom(), [any()]) :: t()
-  @spec run_async(t(), name(), module(), atom(), [any()], Keyword.t()) :: t()
-  def run_async(%__MODULE__{} = chain, name, mod, fun, args, opts \\ [])
+  @spec run_async(t(), name(), {module(), atom(), [any()]}, Keyword.t()) :: t()
+  def run_async(%__MODULE__{} = chain, name, {mod, fun, args}, opts)
       when is_atom(mod) and is_atom(fun) and is_list(args) do
     add_operation(chain, name, {:run_async, {mod, fun, args}, opts})
   end
@@ -270,7 +298,7 @@ defmodule WithEx.Chain do
   defp add_operation(%__MODULE__{} = chain, name, operation) do
     %{operations: operations, names: names} = chain
 
-    if MapSet.member?(names, name) do
+    if name != :_ && MapSet.member?(names, name) do
       raise "#{Kernel.inspect(name)} is already a member of the WithEx.Chain: \n#{Kernel.inspect(chain)}"
     else
       %{

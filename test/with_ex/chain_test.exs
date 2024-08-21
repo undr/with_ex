@@ -77,12 +77,12 @@ defmodule WithEx.ChainTest do
     end
 
     test "with mfa" do
-      chain = Chain.new() |> Chain.run(:fun, __MODULE__, :run_ok, [])
+      chain = Chain.new() |> Chain.run(:fun, {__MODULE__, :run_ok, []})
 
       assert chain.names == MapSet.new([:fun])
       assert chain.operations == [{:fun, {:run, {__MODULE__, :run_ok, []}}}]
 
-      chain = Chain.new() |> Chain.run_async(:fun, __MODULE__, :run_ok, [])
+      chain = Chain.new() |> Chain.run_async(:fun, {__MODULE__, :run_ok, []})
 
       assert chain.names == MapSet.new([:fun])
       assert chain.operations == [{:fun, {:run_async, {__MODULE__, :run_ok, []}, []}}]
@@ -198,8 +198,8 @@ defmodule WithEx.ChainTest do
     test "success with mfa" do
       chain =
         Chain.new()
-        |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
-        |> Chain.run(:pow2, __MODULE__, :pow2_ok, [])
+        |> Chain.run(:sum, {__MODULE__, :sum_ok, [5, 10]})
+        |> Chain.run(:pow2, {__MODULE__, :pow2_ok, []})
 
       assert {:ok, 225, %{sum: 15, pow2: 225}} == Chain.exec(chain)
     end
@@ -227,15 +227,15 @@ defmodule WithEx.ChainTest do
     test "error with mfa" do
       chain =
         Chain.new()
-        |> Chain.run(:sum, __MODULE__, :sum_error, [5, 10])
-        |> Chain.run(:pow2, __MODULE__, :pow2_ok, [])
+        |> Chain.run(:sum, {__MODULE__, :sum_error, [5, 10]})
+        |> Chain.run(:pow2, {__MODULE__, :pow2_ok, []})
 
       assert {:error, {:sum, :sum_reason}, %{}} == Chain.exec(chain)
 
       chain =
         Chain.new()
-        |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
-        |> Chain.run(:pow2, __MODULE__, :pow2_error, [])
+        |> Chain.run(:sum, {__MODULE__, :sum_ok, [5, 10]})
+        |> Chain.run(:pow2, {__MODULE__, :pow2_error, []})
 
       assert {:error, {:pow2, :pow2_reason}, %{sum: 15}} == Chain.exec(chain)
     end
@@ -254,8 +254,8 @@ defmodule WithEx.ChainTest do
     test "async success with mfa" do
       chain =
         Chain.new()
-        |> Chain.run_async(:sum, __MODULE__, :sum_ok, [5, 10])
-        |> Chain.run_async(:prod, __MODULE__, :prod_ok, [5, 10])
+        |> Chain.run_async(:sum, {__MODULE__, :sum_ok, [5, 10]})
+        |> Chain.run_async(:prod, {__MODULE__, :prod_ok, [5, 10]})
 
       assert {:ok, 50, %{sum: 15, prod: 50}} == Chain.exec(chain)
     end
@@ -283,15 +283,15 @@ defmodule WithEx.ChainTest do
     test "async error with mfa" do
       chain =
         Chain.new()
-        |> Chain.run_async(:sum, __MODULE__, :sum_error, [5, 10])
-        |> Chain.run_async(:prod, __MODULE__, :prod_ok, [5, 10])
+        |> Chain.run_async(:sum, {__MODULE__, :sum_error, [5, 10]})
+        |> Chain.run_async(:prod, {__MODULE__, :prod_ok, [5, 10]})
 
       assert {:error, {:sum, :sum_reason}, %{prod: 50}} == Chain.exec(chain)
 
       chain =
         Chain.new()
-        |> Chain.run_async(:sum, __MODULE__, :sum_ok, [5, 10])
-        |> Chain.run_async(:prod, __MODULE__, :prod_error, [5, 10])
+        |> Chain.run_async(:sum, {__MODULE__, :sum_ok, [5, 10]})
+        |> Chain.run_async(:prod, {__MODULE__, :prod_error, [5, 10]})
 
       assert {:error, {:prod, :prod_reason}, %{sum: 15}} == Chain.exec(chain)
     end
@@ -300,8 +300,8 @@ defmodule WithEx.ChainTest do
       chain =
         Chain.new()
         |> Chain.put(:parent, self())
-        |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
-        |> Chain.run(:pow2, __MODULE__, :pow2_ok, [])
+        |> Chain.run(:sum, {__MODULE__, :sum_ok, [5, 10]})
+        |> Chain.run(:pow2, {__MODULE__, :pow2_ok, []})
         |> Chain.finally(fn result, effects ->
           send(effects.parent, {:result1, result})
           send(effects.parent, {:effects1, effects})
@@ -323,8 +323,8 @@ defmodule WithEx.ChainTest do
       chain =
         Chain.new()
         |> Chain.put(:parent, self())
-        |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
-        |> Chain.run(:pow2, __MODULE__, :pow2_error, [])
+        |> Chain.run(:sum, {__MODULE__, :sum_ok, [5, 10]})
+        |> Chain.run(:pow2, {__MODULE__, :pow2_error, []})
         |> Chain.finally(fn result, effects ->
           send(effects.parent, {:result1, result})
           send(effects.parent, {:effects1, effects})
@@ -346,7 +346,7 @@ defmodule WithEx.ChainTest do
       chain =
         Chain.new()
         |> Chain.put(:parent, self())
-        |> Chain.run(:sum, __MODULE__, :sum_ok, [5, 10])
+        |> Chain.run(:sum, {__MODULE__, :sum_ok, [5, 10]})
         |> Chain.run(:pow2, fn _ -> raise "error!" end)
         |> Chain.finally(fn result, effects ->
           send(effects.parent, {:result1, result})
